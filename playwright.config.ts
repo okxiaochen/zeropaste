@@ -21,14 +21,11 @@ const EXTERNAL_BASE_URL = process.env.E2E_BASE_URL;
 const BASE_URL = EXTERNAL_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 
 /**
- * Absolute, and deliberately so. Prisma resolves a relative SQLite path in DATABASE_URL against the
- * directory holding the schema file, not the process working directory — so `file:./e2e.db` would
- * silently create an empty database under prisma/sqlite/ and every query would fail on a missing
- * table.
+ * Where the filesystem backend keeps objects during a local e2e run.
  *
  * `__dirname` rather than `import.meta.dirname`: Playwright transpiles this config to CommonJS.
  */
-const E2E_DB = path.resolve(__dirname, "tests/e2e.db");
+const E2E_STORE = path.resolve(__dirname, "tests/e2e-store");
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -52,8 +49,7 @@ export default defineConfig({
         env: {
           PORT: String(PORT),
           HOSTNAME: "127.0.0.1",
-          DATABASE_PROVIDER: "sqlite",
-          DATABASE_URL: `file:${E2E_DB}`,
+          STORAGE_DIR: E2E_STORE,
           CRON_SECRET: "playwright-e2e-secret-value",
         },
       },

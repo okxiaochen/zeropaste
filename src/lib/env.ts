@@ -21,8 +21,11 @@ const booleanish = z
   .transform((value) => value === "true");
 
 const envSchema = z.object({
-  DATABASE_PROVIDER: z.enum(["sqlite", "postgresql"]),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL must not be empty"),
+  /**
+   * Where the filesystem backend keeps objects. Ignored on Cloudflare, where storage arrives as an R2
+   * binding rather than a path.
+   */
+  STORAGE_DIR: z.string().min(1).default("/data/pastes"),
 
   /** Optional canonical origin, used only for metadata. Share links are built from
    *  window.location.origin so that moving the site does not invalidate them. */

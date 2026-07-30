@@ -10,9 +10,9 @@
  * A byte array backed by a plain ArrayBuffer.
  *
  * Since TypeScript 5.7 typed arrays are generic over their buffer, and a bare `Uint8Array` means
- * `Uint8Array<ArrayBufferLike>` — which includes SharedArrayBuffer and is therefore rejected by
- * Prisma's `Bytes` columns. Annotate byte variables with this instead of `Uint8Array` so the
- * narrower type survives all the way to the database layer.
+ * `Uint8Array<ArrayBufferLike>` — which includes SharedArrayBuffer, and is therefore rejected by APIs
+ * that need a transferable buffer, including the R2 binding and parts of node:fs. Annotate byte
+ * variables with this rather than `Uint8Array` so the narrower type survives to the storage layer.
  */
 export type Bytes = Uint8Array<ArrayBuffer>;
 

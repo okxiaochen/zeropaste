@@ -14,8 +14,10 @@ would decrypt it.
 - **Optional password.** Argon2id over the password is folded into the key, so both the link and the
   password are required. Neither alone is enough, and the server has neither.
 - **Expiry that actually deletes.** 10 minutes to 3 months; 3 months is the default and the hard
-  ceiling. Expired rows are hard-deleted by whichever comes first: the request that tried to read
-  them, or the purge timer. `VACUUM` runs afterwards so the bytes leave the database file too.
+  ceiling. There is no database — each paste is one opaque object, deleted by whichever comes first:
+  the request that tried to read it, the 15-minute sweep, or (on Cloudflare) the R2 lifecycle rule.
+  Self-hosted, the file's bytes are overwritten before it is unlinked. This design rejected
+  Cloudflare D1 specifically because its Time Travel keeps deleted data restorable for weeks.
 - **Unguessable, unindexed links.** 128-bit random ids, `X-Robots-Tag: noindex`,
   `Referrer-Policy: no-referrer`, and a viewer whose server-rendered HTML contains no content at all.
 - **Syntax highlighting and formatting** for the languages listed in `src/lib/languages.ts` — all of
@@ -26,7 +28,7 @@ would decrypt it.
 ## Requirements
 
 - Node 22+ and pnpm (`corepack enable pnpm`)
-- Either SQLite (nothing to install) or an existing PostgreSQL 16+ server
+- No database. Storage is Cloudflare R2 or a local directory, depending on where you deploy.
 - **HTTPS in production.** Not a recommendation: `crypto.subtle` does not exist in an insecure
   context, so on plain HTTP outside localhost the app cannot encrypt anything.
 
@@ -34,32 +36,41 @@ would decrypt it.
 
 ```bash
 corepack pnpm install
-corepack pnpm prisma:generate            # generates one client per provider
-cp .env.example .env                     # defaults to SQLite at ./dev.db
-corepack pnpm prisma:migrate:sqlite
+cp .env.example .env      # set STORAGE_DIR to a local path, e.g. ./local-store
 corepack pnpm dev
 ```
 
 ```bash
-corepack pnpm test        # crypto, encoding, fragment codec
+corepack pnpm test        # crypto, envelope, store, formatters, folding, theme
+corepack pnpm test:e2e    # Playwright against a production build
 corepack pnpm typecheck
 ```
 
 ## Deployment
 
 See **[docs/AGENT-DEPLOY.md](docs/AGENT-DEPLOY.md)**. It is written as a runbook an AI agent can
-follow end to end — hand it to Claude Code or similar with shell access on the target host — and it
-works just as well read by a person.
+follow end to end — hand it to Claude Code or similar with shell access — and it works just as well
+read by a person. Two supported targets:
 
-The short version:
+**Cloudflare Workers + R2** (primary):
 
 ```bash
-cp .env.example .env    # set DATABASE_PROVIDER and DATABASE_URL
+pnpm wrangler r2 bucket create zeropaste
+pnpm cf:deploy
+```
+
+Fits the Workers Free plan (~2.7 MiB of the 3 MiB worker limit; the heavy client bundles are free
+static assets). The runbook covers lifecycle rules, the WAF rate limit, and what Cloudflare can and
+cannot see.
+
+**Docker, self-hosted** (strongest privacy posture):
+
+```bash
+cp .env.example .env
 docker compose up -d --build
 ```
 
-One container. The database is yours to provide; there is no bundled Postgres and no bundled reverse
-proxy. Terminate TLS in front of it.
+One container, one volume, no database. Terminate TLS in front of it.
 
 ## Documentation
 
@@ -79,3 +90,7 @@ Stated plainly, because a security tool that oversells itself is worse than none
 - **Anyone who has the link.** The link *is* the key. Treat it like a password.
 - **Browser history, proxies that log URLs, and chat clients that preview links.** The fragment is
   not sent over the network, but it is in the URL bar and in history.
+- **Access-pattern metadata, on the Cloudflare deployment.** Cloudflare's edge sees each request's
+  IP, paste id, and timestamp — never the content or the key, but "who fetched what, when" is
+  visible to them. This worker ships with observability logging disabled to avoid adding our own
+  copy of that record. If access patterns themselves are sensitive, self-host.

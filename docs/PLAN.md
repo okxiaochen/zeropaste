@@ -46,13 +46,13 @@ Consequences — these are hard constraints, not preferences:
 | Formatters | `prettier/standalone`, `sql-formatter`, `xml-formatter` | Run entirely in the browser |
 | Compression | **fflate** (deflate) | Compress before encrypting; text typically shrinks to 20–30% |
 | Cryptography | **WebCrypto** (AES-256-GCM, HKDF) + **hash-wasm** (Argon2id) | Browser-native primitives; no third-party JS crypto to trust |
-| Database | **PostgreSQL 16** *or* **SQLite** — chosen at deploy time | See §3 |
-| ORM | **Prisma 6** | Best migration tooling; one readable schema per provider |
+| Storage | **Cloudflare R2** (Workers) or **the filesystem** (Docker) — no database | See §3 |
+| ORM | None. One opaque envelope per paste; there is nothing relational to model | See §3 |
 | Validation | **Zod** | Shared schemas between client and server |
 | Rate limiting | In-memory LRU (single container) | Prevents enumeration and spam |
 | Forms | react-hook-form + zod resolver | — |
 | Testing | **Vitest** (crypto, KDF, expiry logic) + **Playwright** (end-to-end) | Crypto code must be unit-tested |
-| Deployment | **Docker Compose**, a single `app` container; the database is supplied by the operator | Docker 28.5 available locally |
+| Deployment | **Cloudflare Workers + R2** (primary) or **Docker Compose**, a single container with a volume | See docs/AGENT-DEPLOY.md |
 
 All source comments, identifiers, and documentation are written in English.
 
@@ -97,76 +97,38 @@ The password flag lives in the fragment, not the database — the server does no
 
 ---
 
-## 3. Database: Postgres or SQLite, Selected at Deploy Time
+## 3. Storage: One Encrypted Object per Paste, No Database
 
-Prisma's `provider` field does not accept `env()`, and the multi-provider array was removed from
-Prisma years ago. The supported approach is one schema file per provider:
+> **Architecture note (2026-07-30).** Phases 1–2 shipped on Prisma with per-provider SQLite and
+> PostgreSQL schemas. That was replaced wholesale when Cloudflare became the primary target, for a
+> privacy reason: Cloudflare D1 — the SQL option there — keeps a restorable history of the database
+> (Time Travel) that cannot be disabled, so an expired-and-deleted paste would remain recoverable
+> for weeks. That is incompatible with "expiry deletes the data". Object storage has no such
+> mechanism, and once pastes are single opaque objects, the database earns nothing: there is exactly
+> one access path (by id) and no relational structure at all.
 
-```
-prisma/
-├─ postgres.prisma        # generator output -> src/generated/prisma/postgres
-├─ sqlite.prisma          # generator output -> src/generated/prisma/sqlite
-└─ migrations/
-   ├─ postgres/
-   └─ sqlite/
-```
-
-Both clients are generated at Docker build time. `src/lib/db.ts` dynamically imports the right
-one based on `DATABASE_PROVIDER`, so no application code outside that file is provider-aware.
-With a single model, keeping two schemas in sync is trivial.
-
-Provider differences to respect:
-
-- Prisma does not support the `Json` type on SQLite -> KDF parameters are stored as a JSON
-  **string** on both providers, for parity.
-- `Bytes` maps to `bytea` on Postgres and `BLOB` on SQLite; both work.
-- SQLite needs `PRAGMA journal_mode=WAL` and a `busy_timeout` for concurrent access.
-- SQLite does not reclaim disk pages after `DELETE`; the purge job must run `VACUUM` so deleted
-  ciphertext is genuinely overwritten. Postgres autovacuum handles this, but the purge job runs
-  an explicit `VACUUM` there too.
-
-### Schema
-
-```prisma
-model Paste {
-  id         String   @id             // 22-char base64url = 128 bits of entropy
-  ciphertext Bytes                    // AES-GCM ciphertext + auth tag
-  iv         Bytes                    // 12 bytes
-  salt       Bytes                    // 16 bytes
-  kdf        String                   // JSON: { alg:"argon2id", m:65536, t:3, p:1, v:1 }
-  sizeBytes  Int
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime                 // server-clamped to createdAt + 90 days
-
-  @@index([expiresAt])
-}
-```
-
-Explicitly **not** stored: language, title, plaintext, password hash, whether a password exists,
-creator IP, or User-Agent.
-
-### Selecting a provider at deploy time
-
-Two environment variables decide everything; there is only ever one container:
+Each paste is one binary envelope (`src/lib/store/envelope.ts`):
 
 ```
-DATABASE_PROVIDER=sqlite
-DATABASE_URL=file:/data/zeropaste.db
-
-DATABASE_PROVIDER=postgresql
-DATABASE_URL=postgresql://user:pass@host.docker.internal:5432/zeropaste?schema=public
+"ZP01" | expiresAt (u64 ms) | iv len | salt len | kdf len | iv | salt | kdf JSON | ciphertext
 ```
 
-The entrypoint runs `prisma migrate deploy` against the schema matching `DATABASE_PROVIDER`,
-then starts the Next.js standalone server.
+Everything a client needs to attempt decryption, nothing an operator could use to read content —
+and no "has password" flag anywhere, since that travels in the URL fragment.
 
-SQLite `PRAGMA journal_mode=WAL` and `busy_timeout` cannot be expressed in a Prisma connection
-URL, so `src/lib/db.ts` issues them via `$executeRawUnsafe` immediately after the client is
-constructed.
+Two interchangeable backends implement `PasteStore` (`src/lib/store/`):
 
----
+| | R2 (`r2.ts`) | Filesystem (`filesystem.ts`) |
+|---|---|---|
+| Used by | Cloudflare Workers | Docker / self-hosted |
+| Key/path | `pastes/<class>/<id>` | `$STORAGE_DIR/pastes/<class>/<id>` |
+| Delete semantics | Final (versioning must stay off) | Bytes overwritten with random data, fsync, then unlink |
+| Bundle cost | None — the binding is part of the runtime | None — `node:fs`, lazily imported so it never enters the worker |
 
-## 4. Expiry and Deletion
+Ids are one expiry-class character plus 22 base64url characters (128 bits of entropy), so the
+storage key derives from the id alone — no index, no lookup table, no second thing to keep in sync.
+
+## 4. Expiry and Deletion — Three Layers
 
 | Option | Value |
 |---|---|
@@ -175,23 +137,18 @@ constructed.
 
 The server never trusts the client-supplied value: `expiresAt = min(requested, now + 90d)`.
 
-Two layers of deletion:
+1. **Lazy delete** — a read of an expired paste deletes it inside that request and returns 404.
+2. **Scheduled sweep** — every 15 minutes. Self-hosted: an in-process timer registered from
+   `instrumentation.ts`. Cloudflare: a Cron Trigger into the `scheduled` handler in `src/worker.ts`
+   (OpenNext's generated worker only exports `fetch`, so the wrapper is what makes the cron real —
+   and the sweep builds its store from the event's own `env`, because `getCloudflareContext()`
+   exists only during `fetch`).
+3. **Storage-layer ceiling (Cloudflare)** — per-prefix R2 lifecycle rules delete each class at its
+   TTL ceiling even if the application never runs. See docs/AGENT-DEPLOY.md §A5.
 
-1. **Lazy delete** — `GET /api/pastes/:id` finds an expired row, hard-deletes it inside the same
-   request, and returns 404.
-2. **Scheduled purge** — every `PURGE_INTERVAL_MINUTES` (default 15), `DELETE FROM Paste WHERE
-   expiresAt < now()` followed by `VACUUM`. This runs **in-process**, registered from Next.js's
-   `instrumentation.ts` hook, which executes once per server start. No sidecar container and no
-   shared secret are needed for the default single-container deployment.
-
-   `POST /api/cron/purge`, guarded by `CRON_SECRET`, is kept as an alternative trigger for
-   operators who prefer an external scheduler (host crontab, systemd timer, Kubernetes CronJob).
-   Set `PURGE_IN_PROCESS=false` to disable the internal timer and use only that.
-
-Deletion is a real `DELETE`, never a soft-delete flag. Burn-after-read is intentionally **not**
-implemented.
-
----
+Deletion is real deletion. The filesystem backend overwrites file contents before unlinking; R2
+deletes are final. `POST /api/cron/purge` (guarded by `CRON_SECRET`) remains as an external trigger
+for operators who disable the in-process timer.
 
 ## 5. Unguessable Links, Invisible to Search Engines
 
@@ -312,12 +269,8 @@ zeropaste/
 ├─ docker-compose.yml           # a single `app` service, see below
 ├─ Dockerfile                   # multi-stage, Next.js standalone output
 ├─ docker/
-│  └─ entrypoint.sh             # migrate deploy for the selected provider, then start
 ├─ .env.example
 ├─ next.config.ts               # security headers, noindex
-├─ prisma/
-│  ├─ postgres.prisma
-│  ├─ sqlite.prisma
 │  └─ migrations/{postgres,sqlite}/
 ├─ public/
 ├─ docs/
@@ -328,7 +281,6 @@ zeropaste/
 ├─ scripts/
 │  └─ purge.ts                  # manual purge entrypoint, callable via docker exec
 ├─ src/
-│  ├─ generated/prisma/         # gitignored; postgres/ and sqlite/ clients
 │  ├─ instrumentation.ts        # registers the in-process purge timer on server start
 │  ├─ app/
 │  │  ├─ layout.tsx
@@ -359,14 +311,12 @@ zeropaste/
 │  │  ├─ languages.ts           # language registry
 │  │  ├─ formatters/            # prettier.ts, sql.ts, xml.ts, index.ts
 │  │  ├─ highlight/shiki.ts     # singleton highlighter, lazy language loading
-│  │  ├─ db.ts                  # provider-aware Prisma client
 │  │  ├─ ids.ts                 # random id generation
 │  │  ├─ expiry.ts              # expiry options, 90-day server clamp
 │  │  ├─ ratelimit.ts
 │  │  ├─ validation.ts          # shared Zod schemas
 │  │  └─ env.ts                 # env var validation via Zod
 │  ├─ server/
-│  │  └─ pastes.ts              # data access layer, the only Prisma consumer
 │  └─ types/
 └─ tests/
    ├─ unit/                     # crypto, fragment, expiry
@@ -482,6 +432,25 @@ process working directory. `file:./x.db` with `prisma/sqlite/schema.prisma` mean
 `prisma/sqlite/x.db`. Two commands pointed at the same-looking relative path can therefore create two
 different databases, and the symptom is a table that does not exist. Use absolute paths; the Docker
 default (`file:/data/zeropaste.db`) already does.
+
+### Interlude — Cloudflare as primary target, storage rewrite — DONE (2026-07-30)
+
+- [x] Spike measured first (branch `spike/cloudflare`): worker fits the free plan at ~2.7 MiB gzip,
+      warm SSR 2–5 ms; full findings in the spike branch's docs/CLOUDFLARE-SPIKE.md
+- [x] Prisma and both SQL providers removed — see the architecture note in §3 (D1 Time Travel is
+      the reason SQL on Cloudflare was rejected outright)
+- [x] `PasteStore` with R2 and filesystem backends over one versioned binary envelope (`ZP01`),
+      16 new unit tests for the codec and 19 for the stores/ids
+- [x] Custom worker entry (`src/worker.ts`) adding the `scheduled` handler OpenNext omits; sweep
+      verified by log line (`swept 2 expired paste(s)`) with no reads involved, because a 404 after
+      a read proves only the lazy-delete layer
+- [x] Two real bugs found by verification and fixed: `constructor.name` backend detection broken by
+      minification (now an explicit `kind` field), and `getCloudflareContext()` throwing inside
+      `scheduled` (store now built from the event's own `env`)
+- [x] Privacy hardening: Workers observability off (request logs would record paste ids), sweep logs
+      counts only, WAF rate limiting rule documented as the real limiter at the edge
+- [x] e2e suite green on both targets: 24/24 against workerd + Miniflare R2, 24/24 against the
+      standalone filesystem build; stored objects verified opaque on both
 
 ### Phase 3 — Hardening and operations
 

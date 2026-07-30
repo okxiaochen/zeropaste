@@ -21,8 +21,8 @@ export interface PasteResponse {
 /**
  * GET /api/pastes/:id — returns the encrypted blob.
  *
- * A missing paste and an expired paste are the same 404: the response must not confirm that an id
- * once existed, since that would turn enumeration into a census of past activity.
+ * A missing paste and an expired one are the same 404: the response must not confirm that an id once
+ * existed, since that would turn enumeration into a census of past activity.
  */
 export async function GET(
   request: Request,
@@ -43,22 +43,22 @@ export async function GET(
 
   const { id } = await context.params;
 
-  // Reject malformed ids before touching the database, so a flood of junk requests costs nothing.
+  // Reject malformed ids before touching storage, so a flood of junk requests costs nothing.
   if (!isValidPasteId(id)) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
-  const paste = await readPaste(id);
-  if (!paste) {
+  const envelope = await readPaste(id);
+  if (!envelope) {
     return NextResponse.json({ error: "Not found." }, { status: 404 });
   }
 
   const body: PasteResponse = {
-    ciphertext: bytesToBase64Url(paste.ciphertext),
-    iv: bytesToBase64Url(paste.iv),
-    salt: bytesToBase64Url(paste.salt),
-    kdf: paste.kdf,
-    expiresAt: paste.expiresAt.toISOString(),
+    ciphertext: bytesToBase64Url(envelope.ciphertext),
+    iv: bytesToBase64Url(envelope.iv),
+    salt: bytesToBase64Url(envelope.salt),
+    kdf: envelope.kdf,
+    expiresAt: envelope.expiresAt.toISOString(),
   };
 
   return NextResponse.json(body);

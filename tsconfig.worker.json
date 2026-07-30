@@ -1,0 +1,10 @@
+{
+  // src/worker.ts is excluded from the default typecheck because it imports .open-next/worker.js, a
+  // build artefact absent from a clean checkout. Run `pnpm typecheck:worker` after `pnpm cf:build`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/worker.ts", "src/**/*.ts"],
+  "exclude": ["node_modules"]
+}
