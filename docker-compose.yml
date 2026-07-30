@@ -1,8 +1,10 @@
-# One service. The database is supplied by the operator: either the SQLite file on the named volume
-# below, or an external PostgreSQL reached through DATABASE_URL.
+# The self-hosted deployment: one service, one volume, no database.
 #
-# See docs/AGENT-DEPLOY.md before deploying. In particular, this container speaks plain HTTP — TLS
-# must be terminated in front of it, because browsers withhold WebCrypto from insecure contexts.
+# Storage is the filesystem backend, which overwrites a paste's bytes before unlinking it. That is a
+# stronger erasure guarantee than any SQL option offers — see src/lib/store/filesystem.ts.
+#
+# This container speaks plain HTTP by design. TLS must be terminated in front of it, because browsers
+# withhold WebCrypto from insecure contexts. See docs/AGENT-DEPLOY.md.
 
 services:
   app:
@@ -12,12 +14,8 @@ services:
       - "${PORT:-3000}:3000"
     env_file: .env
     volumes:
-      # Only used when DATABASE_PROVIDER=sqlite; harmless otherwise.
+      # Every paste lives here. Without this volume they vanish on restart.
       - zeropaste-data:/data
-    extra_hosts:
-      # Lets DATABASE_URL point at a Postgres running on the host. Docker Desktop provides this name
-      # automatically; the mapping is what makes it work on Linux too.
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "docker/healthcheck.js"]

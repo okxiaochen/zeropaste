@@ -26,3 +26,10 @@ coverage/
 test-results/
 playwright-report/
 .playwright/
+
+# e2e artifacts
+tests/e2e-store/
+
+# OpenNext / Cloudflare build output
+.open-next/
+.wrangler/

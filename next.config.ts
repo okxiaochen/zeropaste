@@ -58,9 +58,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
-  // The generated Prisma clients are imported dynamically at runtime; keep them external so the
-  // bundler does not try to trace two full query engines into the client bundle.
-  serverExternalPackages: ["@prisma/client"],
   async headers() {
     return [
       { source: "/:path*", headers: baseHeaders },

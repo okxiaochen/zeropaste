@@ -1,0 +1,55 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zeropaste",
+
+  // Our own entry, not OpenNext's. Theirs exports only `fetch`; the Cron Trigger below needs a
+  // `scheduled` handler, and without one it would fire into nothing and pastes would silently stop
+  // being swept. See src/worker.ts.
+  "main": "src/worker.ts",
+
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    // Client bundles live here. Static asset requests are free and do not count against the Workers
+    // request quota, which is why CodeMirror, Prettier, and Shiki cost nothing to serve.
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "r2_buckets": [
+    {
+      // R2 rather than D1, and for a privacy reason rather than a technical one: D1 keeps a restorable
+      // history of the database that cannot be disabled, so a paste deleted at expiry would remain
+      // recoverable for weeks. An R2 delete is final. Leave bucket versioning OFF — it would
+      // reintroduce exactly the hazard being avoided here.
+      "binding": "PASTES",
+      "bucket_name": "zeropaste"
+    }
+  ],
+
+  // The third deletion layer, enforced by the storage layer itself. Lifecycle rules are configured on
+  // the bucket, not here; see docs/AGENT-DEPLOY.md for the per-prefix ages that match
+  // EXPIRY_OPTIONS in src/lib/expiry.ts.
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  "observability": {
+    // Off deliberately. Workers logs record request URLs, and a paste URL contains its id — enough to
+    // reconstruct who fetched which paste and when. Counts are logged instead of ids; see
+    // src/worker.ts.
+    "enabled": false
+  },
+
+  "vars": {
+    // Tells instrumentation.ts not to start the in-process purge timer: there is no long-running
+    // process here for one to live in, and the Cron Trigger above is its replacement.
+    "CLOUDFLARE_WORKER": "1",
+    "PURGE_IN_PROCESS": "false",
+
+    // The in-app limiter counts per isolate, and Workers runs many short-lived isolates, so it offers
+    // almost no protection here. A WAF Rate Limiting rule does the real work at the edge — see
+    // docs/AGENT-DEPLOY.md. These values are left generous so the two layers do not fight.
+    "RATE_LIMIT_CREATE_PER_MINUTE": "120",
+    "RATE_LIMIT_READ_PER_MINUTE": "600"
+  }
+}

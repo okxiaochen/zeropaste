@@ -20,5 +20,11 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "src/generated"]
+  "exclude": [
+    "node_modules",
+    // Imports .open-next/worker.js, a build artefact that does not exist in a clean checkout.
+    // `pnpm typecheck:worker` checks it after `cf:build`; the OpenNext build itself also fails loudly
+    // if that import is wrong.
+    "src/worker.ts"
+  ]
 }

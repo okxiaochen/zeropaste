@@ -8,8 +8,11 @@
 const globalForPurge = globalThis as unknown as { zeropastePurgeScheduled?: boolean };
 
 export async function register(): Promise<void> {
-  // The edge runtime cannot reach the database. Only schedule from the Node.js server.
+  // Only the Node.js server can run a timer at all, and only the self-hosted deployment has a process
+  // long-lived enough for one to matter. On Cloudflare there is no such process: a Cron Trigger calls
+  // the `scheduled` handler in worker.ts instead.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.CLOUDFLARE_WORKER === "1") return;
 
   // Development recompiles call register() again on every change; without this the process would
   // accumulate one timer per reload.
@@ -19,7 +22,7 @@ export async function register(): Promise<void> {
   const { getEnv } = await import("./lib/env");
   const env = getEnv();
 
-  console.log(`zeropaste: provider=${env.DATABASE_PROVIDER}`);
+  console.log(`zeropaste: filesystem store at ${env.STORAGE_DIR}`);
 
   if (!env.PURGE_IN_PROCESS) {
     console.log(
