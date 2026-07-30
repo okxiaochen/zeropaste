@@ -153,7 +153,7 @@ for operators who disable the in-process timer.
 ## 5. Unguessable Links, Invisible to Search Engines
 
 **Unguessable**: `crypto.randomBytes(16)` -> 22 base64url characters, 128 bits of entropy.
-Combined with rate limiting, enumeration is infeasible.
+That entropy alone makes guessing a live id infeasible; rate limiting is for quota abuse and adds nothing here.
 
 **Not indexable**, defense in depth:
 

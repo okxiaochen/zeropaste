@@ -6,9 +6,9 @@ import { findExpiryByClassChar, type ExpiryOption } from "./expiry";
  * Paste identifiers.
  *
  * An id is one storage-class character followed by 22 base64url characters — 16 random bytes, so 128
- * bits of entropy. Combined with edge rate limiting, guessing a live id is not a practical attack:
- * an adversary testing a billion ids per second would expect to need longer than the age of the
- * universe.
+ * bits of entropy. That alone makes guessing a live id infeasible — an adversary testing a billion
+ * ids per second would expect to need longer than the age of the universe — so the entropy is the
+ * defence here, not rate limiting, which exists for quota abuse instead.
  *
  * The class character exists so a reader can rebuild the storage key from the id alone, with no index
  * to consult and therefore no second copy of anything to keep in sync. See src/lib/expiry.ts for why

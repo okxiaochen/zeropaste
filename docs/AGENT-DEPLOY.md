@@ -110,9 +110,15 @@ sweep enforce the exact expiry. The ceiling exists so a broken sweep cannot mean
 
 ## A6. Rate limiting (WAF)
 
-The in-app limiter counts per isolate and Workers runs many isolates, so it barely limits anything
-there. The real limiter is a WAF rule at the edge. The Free plan includes one rate limiting rule;
-spend it on paste creation:
+**Optional, and low priority.** Rate limiting here protects free-tier quota — storage and request
+counts — against someone scripting `POST /api/pastes`. It is *not* an enumeration defence: paste ids
+carry 128 bits of entropy, which already makes guessing infeasible. For a low-traffic personal
+instance, skipping this and reacting if abuse appears is a defensible choice; Cloudflare's free plan
+already provides edge DDoS protection.
+
+If you do want it: the in-app limiter counts per isolate and Workers runs many isolates, so it barely
+limits anything there. A WAF rule at the edge is the real thing. The Free plan includes one rate
+limiting rule; spend it on paste creation:
 
 Dashboard → the zone (or workers.dev is not eligible — custom domain required for WAF) → Security →
 WAF → Rate limiting rules:

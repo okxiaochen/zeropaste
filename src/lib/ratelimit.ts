@@ -7,7 +7,10 @@
  * the replica count. Swapping in Redis would be the fix, and is deliberately not done here because
  * it would add a mandatory service to a deployment designed to need only one.
  *
- * Its real job is making id enumeration hopeless rather than merely improbable.
+ * What this is for, and what it is not for. It exists to bound resource abuse — someone scripting
+ * `POST /api/pastes` to fill storage or burn through a quota. It is **not** an enumeration defence:
+ * paste ids carry 128 bits of entropy, so guessing one is already infeasible by many orders of
+ * magnitude and no rate limit meaningfully improves on that. Do not treat this as a security control.
  */
 
 interface Bucket {
