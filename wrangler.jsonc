@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zeropaste",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-07-01",
+  // nodejs_compat is required by the Next.js server code OpenNext emits.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    // Client bundles are served from here. Static asset requests are free and do not count against
+    // the Workers request quota, which is why CodeMirror, Prettier, and Shiki cost nothing.
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  // Replaces the in-process purge timer, which cannot exist on Workers: there is no long-running
+  // process for setInterval to live in.
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    // Satisfies the env schema on this spike branch; the store is in-memory, so nothing connects.
+    "DATABASE_PROVIDER": "sqlite",
+    "DATABASE_URL": "spike-unused",
+    // The in-process timer cannot work on Workers; the cron trigger above is its replacement.
+    "PURGE_IN_PROCESS": "false",
+    // Raised for the spike only: the e2e suite creates pastes in a burst and would otherwise trip the
+    // limiter. Note that the in-memory limiter is per-isolate and therefore near-useless on Workers
+    // in production — see docs/CLOUDFLARE-SPIKE.md.
+    "RATE_LIMIT_CREATE_PER_MINUTE": "500",
+    "RATE_LIMIT_READ_PER_MINUTE": "2000"
+  }
+}

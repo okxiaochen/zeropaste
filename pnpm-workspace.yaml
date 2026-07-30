@@ -7,3 +7,5 @@ allowBuilds:
   esbuild: true
   prisma: true
   sharp: true
+  # workerd is the Cloudflare Workers runtime, used by `wrangler dev` and the local Miniflare tests.
+  workerd: true
