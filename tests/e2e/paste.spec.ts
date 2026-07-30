@@ -286,6 +286,41 @@ test("copying the viewer's content excludes line numbers and fold controls", asy
   expect(text.replace(/\s/g, "")).toBe("alphabetagamma");
 });
 
+test.describe("footer", () => {
+  test("links to the personal site and the source repository", async ({ page }) => {
+    await page.goto("/");
+
+    const site = page.getByRole("contentinfo").getByRole("link", { name: "xiaochen.dev" });
+    await expect(site).toHaveAttribute("href", "https://xiaochen.dev");
+    // Opens in a new tab so clicking it cannot discard an unsaved paste.
+    await expect(site).toHaveAttribute("target", "_blank");
+    await expect(site).toHaveAttribute("rel", /noopener/);
+
+    const source = page.getByRole("contentinfo").getByRole("link", { name: /Source/ });
+    await expect(source).toHaveAttribute("href", "https://github.com/okxiaochen/zeropaste");
+  });
+
+  test("is absent from the viewer", async ({ page }) => {
+    // The product requirement is that opening a share link shows the content and nothing else. A
+    // footer is something else, so this asserts it stays off that page.
+    const url = await createPaste(page, SECRET);
+    await page.goto(url);
+
+    await expect(page.locator(".zeropaste-code")).toContainText("MARKER_c0ffee");
+    await expect(page.getByRole("contentinfo")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "xiaochen.dev" })).toHaveCount(0);
+  });
+
+  test("is present on the share-result page", async ({ page }) => {
+    await page.goto("/");
+    await typeIntoEditor(page, "footer check");
+    await page.getByRole("button", { name: "Create link" }).click();
+
+    await expect(page.getByRole("heading", { name: "Your link is ready" })).toBeVisible();
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "xiaochen.dev" })).toBeVisible();
+  });
+});
+
 test.describe("theme", () => {
   test("follows the system preference by default", async ({ browser }) => {
     const dark = await browser.newContext({ colorScheme: "dark" });

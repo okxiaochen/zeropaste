@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   if (!env.CRON_SECRET) {
     // Failing closed matters here: an unauthenticated purge endpoint is a denial-of-service tool
-    // against a database of short-lived rows.
+    // against a store of short-lived objects.
     return NextResponse.json(
       { error: "CRON_SECRET is not configured, so this endpoint is disabled." },
       { status: 503 },

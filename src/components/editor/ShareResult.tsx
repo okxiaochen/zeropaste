@@ -3,6 +3,7 @@
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -55,51 +56,63 @@ export function ShareResult({
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16">
-      <h1 className="text-xl font-semibold">Your link is ready</h1>
+    // See PasteEditor: the footer must be outside <main> to be a real `contentinfo` landmark.
+    <div className="mx-auto max-w-2xl px-6 py-16">
+      <main>
+        <h1 className="text-xl font-semibold">Your link is ready</h1>
 
-      <p className="mt-6 rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm">
-        <strong>Copy it now.</strong> The decryption key is the part after <code>#</code> and was
-        never sent to the server. This link cannot be shown again or recovered.
-      </p>
+        <p className="mt-6 rounded-lg border border-destructive/50 bg-destructive/5 px-4 py-3 text-sm">
+          <strong>Copy it now.</strong> The decryption key is the part after{" "}
+          <code>#</code> and was never sent to the server. This link cannot be
+          shown again or recovered.
+        </p>
 
-      <div className="mt-4 flex gap-2">
-        <Input
-          readOnly
-          value={url}
-          onFocus={(event) => event.currentTarget.select()}
-          className="font-mono text-sm"
-          aria-label="Share link"
-        />
-        <Button type="button" onClick={copy}>
-          {copied ? <Check /> : <Copy />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
-      </div>
-
-      {qr && (
-        <div className="mt-6 flex items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element -- a local data: URI, not a remote asset */}
-          <img
-            src={qr}
-            alt="QR code for the share link"
-            width={110}
-            height={110}
-            className="rounded-lg border bg-white p-1"
+        <div className="mt-4 flex gap-2">
+          <Input
+            readOnly
+            value={url}
+            onFocus={(event) => event.currentTarget.select()}
+            className="font-mono text-sm"
+            aria-label="Share link"
           />
-          <p className="text-sm text-muted-foreground">
-            Scan to open on another device. The key is inside the code, so treat it like the link.
-          </p>
+          <Button type="button" onClick={copy}>
+            {copied ? <Check /> : <Copy />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
         </div>
-      )}
 
-      <p className="mt-6 text-sm text-muted-foreground">
-        Expires {new Date(expiresAt).toLocaleString()}, after which it is deleted from the database.
-      </p>
+        {qr && (
+          <div className="mt-6 flex items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a local data: URI, not a remote asset */}
+            <img
+              src={qr}
+              alt="QR code for the share link"
+              width={110}
+              height={110}
+              className="rounded-lg border bg-white p-1"
+            />
+            <p className="text-sm text-muted-foreground">
+              Scan to open on another device. The key is inside the code, so
+              treat it like the link.
+            </p>
+          </div>
+        )}
 
-      <Button variant="ghost" onClick={onCreateAnother} className="mt-8 -ml-3">
-        Create another
-      </Button>
-    </main>
+        <p className="mt-6 text-sm text-muted-foreground">
+          Expires {new Date(expiresAt).toLocaleString()}, after which it is
+          deleted from storage.
+        </p>
+
+        <Button
+          variant="ghost"
+          onClick={onCreateAnother}
+          className="mt-8 -ml-3"
+        >
+          Create another
+        </Button>
+      </main>
+
+      <SiteFooter />
+    </div>
   );
 }
