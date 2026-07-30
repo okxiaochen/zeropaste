@@ -1,0 +1,28 @@
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+
+# Generated Prisma clients, one per provider. Recreated by `pnpm prisma:generate`.
+src/generated/
+
+# Secrets. Never commit.
+.env
+.env.local
+.env.*.local
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+.DS_Store
+*.tsbuildinfo
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/

@@ -1,0 +1,30 @@
+# One service. The database is supplied by the operator: either the SQLite file on the named volume
+# below, or an external PostgreSQL reached through DATABASE_URL.
+#
+# See docs/AGENT-DEPLOY.md before deploying. In particular, this container speaks plain HTTP — TLS
+# must be terminated in front of it, because browsers withhold WebCrypto from insecure contexts.
+
+services:
+  app:
+    build: .
+    image: zeropaste:local
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file: .env
+    volumes:
+      # Only used when DATABASE_PROVIDER=sqlite; harmless otherwise.
+      - zeropaste-data:/data
+    extra_hosts:
+      # Lets DATABASE_URL point at a Postgres running on the host. Docker Desktop provides this name
+      # automatically; the mapping is what makes it work on Linux too.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "docker/healthcheck.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  zeropaste-data:

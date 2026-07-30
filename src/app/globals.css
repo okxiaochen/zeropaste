@@ -1,0 +1,261 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Design tokens.
+ *
+ * `shadcn init` did not finish writing this file (it shells out to a `pnpm` binary that is not on
+ * PATH under corepack), so the token layer below is maintained by hand. It follows shadcn's
+ * neutral base palette and variable names, which is what the generated components in
+ * src/components/ui reference — keep the names if you regenerate any of them.
+ *
+ * Light is the base and `.dark` overrides it. There is deliberately no `prefers-color-scheme` media
+ * query: the inline script in the root layout resolves the user's choice — including "follow the
+ * system" — into that one class before first paint, so the CSS has a single source of truth and
+ * forcing light on a dark OS works as readily as the reverse. See src/lib/theme.ts.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --radius: 0.625rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.55 0.19 258);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  /* Editor syntax colours, consumed by src/lib/editor/syntax-theme.ts. Roughly github-light, so the
+     editor and the Shiki-rendered viewer agree on what code looks like. */
+  --cm-keyword: #cf222e;
+  --cm-name: #24292f;
+  --cm-property: #0550ae;
+  --cm-function: #8250df;
+  --cm-type: #953800;
+  --cm-tag: #116329;
+  --cm-attribute: #0550ae;
+  --cm-number: #0550ae;
+  --cm-string: #0a3069;
+  --cm-escape: #cf222e;
+  --cm-comment: #6e7781;
+  --cm-punctuation: #57606a;
+  --cm-link: #0969da;
+  --cm-inserted: #116329;
+  --cm-changed: #953800;
+}
+
+:root.dark {
+  --background: oklch(0.16 0.005 260);
+  --foreground: oklch(0.925 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.925 0 0);
+  --popover: oklch(0.22 0.005 260);
+  --popover-foreground: oklch(0.925 0 0);
+  --primary: oklch(0.7 0.15 258);
+  --primary-foreground: oklch(0.18 0.01 260);
+  --secondary: oklch(0.24 0.005 260);
+  --secondary-foreground: oklch(0.925 0 0);
+  --muted: oklch(0.24 0.005 260);
+  --muted-foreground: oklch(0.68 0 0);
+  --accent: oklch(0.27 0.005 260);
+  --accent-foreground: oklch(0.925 0 0);
+  --destructive: oklch(0.65 0.19 25);
+  --border: oklch(0.28 0.005 260);
+  --input: oklch(0.3 0.005 260);
+  --ring: oklch(0.5 0 0);
+
+  /* Roughly github-dark, matching the viewer's dark Shiki theme. */
+  --cm-keyword: #ff7b72;
+  --cm-name: #e6edf3;
+  --cm-property: #79c0ff;
+  --cm-function: #d2a8ff;
+  --cm-type: #ffa657;
+  --cm-tag: #7ee787;
+  --cm-attribute: #79c0ff;
+  --cm-number: #79c0ff;
+  --cm-string: #a5d6ff;
+  --cm-escape: #ff7b72;
+  --cm-comment: #8b949e;
+  --cm-punctuation: #c9d1d9;
+  --cm-link: #58a6ff;
+  --cm-inserted: #7ee787;
+  --cm-changed: #ffa657;
+}
+
+@theme inline {
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family:
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/*
+ * Shiki puts both themes' colours on every token as CSS variables, so switching is a matter of which
+ * variable is read. Toggling the theme therefore recolours the code instantly, with no re-tokenising
+ * and no second copy of the grammar output.
+ */
+.zp-code span {
+  color: var(--shiki-light);
+}
+
+:root.dark .zp-code span {
+  color: var(--shiki-dark);
+}
+
+/*
+ * The viewer's code block.
+ *
+ * Line numbers come from a CSS counter and the fold arrow is an SVG, neither of which is ever part of
+ * a text selection. That is what makes "select all, copy" yield the code alone. Relying on
+ * `user-select: none` over real text would not: browsers disagree about whether such text is excluded
+ * from the clipboard.
+ */
+.zeropaste-code {
+  margin: 0;
+  padding: 1rem 1rem 3rem;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-x: auto;
+  tab-size: 4;
+}
+
+.zeropaste-code code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+}
+
+.zp-row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.zp-row:hover {
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+
+/*
+ * The gutter's visible content is entirely generated: the counter for the number, an SVG for the
+ * arrow. `counter-reset` is set per row from the line index so numbering stays correct when folded
+ * rows are removed from the DOM.
+ */
+.zp-gutter {
+  position: relative;
+  flex: none;
+  width: calc(var(--line-number-width, 3ch) + 2.25rem);
+  padding-right: 1rem;
+  color: var(--muted-foreground);
+  text-align: right;
+  counter-increment: zp-line;
+}
+
+.zp-linenumber::after {
+  content: counter(zp-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.zp-fold {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.55em;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  /* Revealed on row hover, or whenever the block is collapsed so the state is discoverable. */
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.zp-row:hover .zp-fold,
+.zp-fold:focus-visible,
+.zp-fold[aria-expanded="false"] {
+  opacity: 1;
+}
+
+.zp-chevron {
+  width: 0.85rem;
+  height: 0.85rem;
+  transition: transform 0.12s;
+}
+
+.zp-chevron-open {
+  transform: rotate(90deg);
+}
+
+.zp-code {
+  flex: 1 1 auto;
+  white-space: pre;
+}
+
+.zp-collapsed-hint {
+  margin-left: 0.5rem;
+  padding: 0 0.4rem;
+  border-radius: 0.25rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+/* Generated, so a manual selection of a partly folded document still copies only the code. */
+.zp-collapsed-hint::after {
+  content: attr(data-hidden-count);
+}
