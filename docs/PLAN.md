@@ -476,8 +476,10 @@ plan accommodates this in practice. Do not restate a specific free-tier CPU ceil
 Cloudflare has changed it, and `wrangler tail` is the way to know.
 
 Also found: with no icon file, every `/favicon.ico` request reached the worker and rendered a
-Next.js 404 at **285 ms of CPU**, the most expensive request measured. `src/app/icon.svg` makes it a
-free static asset.
+Next.js 404 at **285 ms of CPU** — the most expensive request measured. The icons live in `public/`,
+not as `app/icon.svg`: that Next.js convention serves through a route handler at `/icon.svg?<hash>`,
+which still costs a worker invocation. From `public/` they are static assets — verified with
+`wrangler tail`, 10 icon requests producing zero worker invocations.
 
 Verified in production: `backend: r2` (not the filesystem fallback), noindex and `no-referrer`
 headers, empty viewer SSR HTML, opaque `ZP01` envelopes in R2, and a real cron tick logging
