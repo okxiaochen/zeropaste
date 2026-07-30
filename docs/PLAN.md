@@ -452,6 +452,38 @@ default (`file:/data/zeropaste.db`) already does.
 - [x] e2e suite green on both targets: 24/24 against workerd + Miniflare R2, 24/24 against the
       standalone filesystem build; stored objects verified opaque on both
 
+### Deployed to Cloudflare — 2026-07-30
+
+Live at `https://zeropaste.okxiaochen.workers.dev`, Workers Free plan, R2 bucket `zeropaste` with six
+per-class lifecycle rules. All 24 e2e tests pass against production.
+
+**Measured CPU time, and a correction.** The spike estimated CPU from local wall-clock at 2–5 ms.
+That was wrong by more than an order of magnitude — local workerd does not reproduce isolate startup
+and module initialisation. Real figures from `wrangler tail`:
+
+| Route | p50 | max |
+|---|---|---|
+| `/` (SSR) | 237 ms | 295 ms |
+| `POST /api/pastes` | 110 ms | 147 ms |
+| `/p/:id` (SSR) | 13 ms | 163 ms |
+| `GET /api/pastes/:id` | 10 ms | 109 ms |
+| `/api/health` | 8 ms | 8 ms |
+| cron sweep | 10 ms | 10 ms |
+
+Warm requests land at 8–13 ms; the large numbers are cold starts. **Every request returned
+`outcome: "ok"`** — nothing was terminated for exceeding CPU, including a 295 ms one — so the free
+plan accommodates this in practice. Do not restate a specific free-tier CPU ceiling from memory;
+Cloudflare has changed it, and `wrangler tail` is the way to know.
+
+Also found: with no icon file, every `/favicon.ico` request reached the worker and rendered a
+Next.js 404 at **285 ms of CPU**, the most expensive request measured. `src/app/icon.svg` makes it a
+free static asset.
+
+Verified in production: `backend: r2` (not the filesystem fallback), noindex and `no-referrer`
+headers, empty viewer SSR HTML, opaque `ZP01` envelopes in R2, and a real cron tick logging
+`swept 3 expired paste(s)` with no reads involved — the last point matters because a 404 after a read
+would only have proved the lazy-delete layer.
+
 ### Phase 3 — Hardening and operations
 
 - [ ] In-process purge timer via `instrumentation.ts`, plus the `CRON_SECRET`-guarded route as an
